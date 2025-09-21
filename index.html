@@ -1,0 +1,72 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>To-Do</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>To-Do</h1>
+      <form id="new-task-form" aria-label="Add task">
+        <div class="field-group">
+          <label for="new-title">Task title</label>
+          <input id="new-title" name="title" type="text" placeholder="Add a task..." autocomplete="off" required />
+        </div>
+        <div class="field-group">
+          <label for="new-due">Due date <span aria-hidden="true">(optional)</span></label>
+          <input id="new-due" name="dueAt" type="date" />
+        </div>
+        <div class="field-group">
+          <label for="new-priority">Priority <span aria-hidden="true">(optional)</span></label>
+          <select id="new-priority" name="priority">
+            <option value="">No priority</option>
+            <option value="low">Low</option>
+            <option value="med">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="field-group submit-group">
+          <label class="sr-only" for="submit-task">Add task</label>
+          <button id="submit-task" type="submit">Add</button>
+        </div>
+      </form>
+
+      <section class="controls">
+        <div class="filters" role="group" aria-label="Filters">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="active" aria-pressed="false">Active</button>
+          <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
+        </div>
+        <label class="sr-only" for="sort">Sort tasks</label>
+        <select id="sort" name="sort">
+          <option value="created">Sort: Created</option>
+          <option value="dueAt">Sort: Due</option>
+          <option value="priority">Sort: Priority</option>
+        </select>
+      </section>
+
+      <p id="empty" class="empty" role="status" aria-live="polite">No tasks yet. Add one above to get started.</p>
+      <ul id="list" aria-live="polite" data-test-id="task-list"></ul>
+    </main>
+
+    <template id="task-template">
+      <li class="task" data-test-id="task-item">
+        <div class="task-main">
+          <input type="checkbox" class="task-toggle" data-test-id="task-toggle" />
+          <label class="task-content">
+            <span class="task-title" data-test-id="task-title"></span>
+            <span class="task-meta" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="task-actions">
+          <button type="button" class="task-edit" data-test-id="task-edit">Edit</button>
+          <button type="button" class="task-delete" data-test-id="task-delete">Delete</button>
+        </div>
+      </li>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
