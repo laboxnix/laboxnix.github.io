@@ -1,0 +1,26 @@
+﻿      .join('');
+  }
+
+  try {
+    return window.btoa(unescape(encodeURIComponent(password)));
+  } catch (error) {
+    console.warn('Falling back to plain text password storage', error);
+    return password;
+  }
+}
+
+function normalizeUsername(value) {
+  return value.trim().toLowerCase();
+}
+
+function createId() {
+  const array = new Uint8Array(16);
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(array);
+  } else {
+    for (let index = 0; index < array.length; index += 1) {
+      array[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}

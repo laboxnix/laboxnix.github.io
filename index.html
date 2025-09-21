@@ -1,4 +1,6 @@
-﻿<!doctype html>
+﻿<!-- Fichier principal HTML de l'application To‑Do.
+     Des commentaires en français expliquent les sections pour débutants. -->
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -8,49 +10,144 @@
   </head>
   <body>
     <main class="container">
+      <!-- Titre principal de l'application -->
       <h1>To-Do</h1>
-      <form id="new-task-form" aria-label="Add task">
-        <div class="field-group">
-          <label for="new-title">Task title</label>
-          <input id="new-title" name="title" type="text" placeholder="Add a task..." autocomplete="off" required />
-        </div>
-        <div class="field-group">
-          <label for="new-due">Due date <span aria-hidden="true">(optional)</span></label>
-          <input id="new-due" name="dueAt" type="date" />
-        </div>
-        <div class="field-group">
-          <label for="new-priority">Priority <span aria-hidden="true">(optional)</span></label>
-          <select id="new-priority" name="priority">
-            <option value="">No priority</option>
-            <option value="low">Low</option>
-            <option value="med">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-        <div class="field-group submit-group">
-          <label class="sr-only" for="submit-task">Add task</label>
-          <button id="submit-task" type="submit">Add</button>
-        </div>
-      </form>
 
-      <section class="controls">
-        <div class="filters" role="group" aria-label="Filters">
-          <button type="button" data-filter="all" aria-pressed="true">All</button>
-          <button type="button" data-filter="active" aria-pressed="false">Active</button>
-          <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
+      <!-- Menu en haut à droite (export CSV, connexion/déconnexion) -->
+      <div class="top-actions">
+        <div class="menu">
+          <button id="menu-button" class="menu-button" aria-expanded="false" aria-haspopup="true">Menu</button>
+          <div id="menu-popover" class="menu-popover" role="menu" hidden>
+            <button id="menu-export" type="button" role="menuitem">Export CSV</button>
+            <button id="menu-auth" type="button" role="menuitem">Sign in</button>
+          </div>
         </div>
-        <label class="sr-only" for="sort">Sort tasks</label>
-        <select id="sort" name="sort">
-          <option value="created">Sort: Created</option>
-          <option value="dueAt">Sort: Due</option>
-          <option value="priority">Sort: Priority</option>
-        </select>
+      </div>
+
+      <!-- Section d'authentification: Connexion et Création de compte -->
+      <section id="auth-section" class="panel" aria-live="polite">
+        <h2 class="sr-only">Authentication</h2>
+        <p id="auth-message" class="auth-message" role="status"></p>
+
+        <!-- Formulaire de connexion (login) -->
+        <form id="login-form" class="auth-form" autocomplete="off">
+          <fieldset>
+            <legend>Sign in</legend>
+            <div class="field-group">
+              <label for="login-username">Username</label>
+              <input id="login-username" name="username" type="text" minlength="3" required autocomplete="username" />
+            </div>
+            <div class="field-group">
+              <label for="login-password">Password</label>
+              <input id="login-password" name="password" type="password" minlength="6" required autocomplete="current-password" />
+            </div>
+            <div class="field-group submit-group">
+              <button type="submit">Sign in</button>
+            </div>
+          </fieldset>
+        </form>
+
+        <!-- Formulaire de création de compte (register) -->
+        <form id="register-form" class="auth-form" autocomplete="off">
+          <fieldset>
+            <legend>Create an account</legend>
+            <div class="field-group">
+              <label for="register-username">Username</label>
+              <input id="register-username" name="username" type="text" minlength="3" required autocomplete="username" />
+            </div>
+            <div class="field-group">
+              <label for="register-password">Password</label>
+              <input id="register-password" name="password" type="password" minlength="6" required autocomplete="new-password" />
+            </div>
+            <div class="field-group">
+              <label for="register-confirm">Confirm password</label>
+              <input id="register-confirm" name="confirm" type="password" minlength="6" required autocomplete="new-password" />
+            </div>
+            <div class="field-group submit-group">
+              <button type="submit">Create account</button>
+            </div>
+          </fieldset>
+        </form>
       </section>
 
-      <p id="empty" class="empty" role="status" aria-live="polite">No tasks yet. Add one above to get started.</p>
-      <ul id="list" aria-live="polite" data-test-id="task-list"></ul>
+      <!-- Section principale visible après connexion -->
+      <section id="app-section" class="panel" hidden>
+        <header class="user-bar">
+          <p class="user-status">Signed in as <span id="current-username"></span></p>
+        </header>
+
+        <!-- Agenda: naviguer par jour/semaine pour afficher/planifier -->
+        <section id="agenda" class="agenda controls" aria-label="Agenda">
+          <div class="agenda-toolbar">
+            <button id="agenda-toggle" class="agenda-toggle" type="button" aria-expanded="true" aria-controls="agenda-body">Hide agenda</button>
+          </div>
+          <div id="agenda-body" class="agenda-body">
+            <div class="agenda-nav">
+              <button id="agenda-prev" type="button" aria-label="Previous day">Prev</button>
+              <label class="sr-only" for="agenda-date">Agenda date</label>
+              <input id="agenda-date" type="date" />
+              <button id="agenda-today" type="button">Today</button>
+              <button id="agenda-next" type="button" aria-label="Next day">Next</button>
+            </div>
+            <div class="agenda-scope">
+              <label class="sr-only" for="agenda-scope">Agenda scope</label>
+              <select id="agenda-scope" name="agenda-scope">
+                <option value="all">All tasks</option>
+                <option value="day">This day</option>
+                <option value="week">This week</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Formulaire pour ajouter une nouvelle tâche -->
+        <form id="new-task-form" aria-label="Add task">
+          <div class="field-group">
+            <label for="new-title">Task title</label>
+            <input id="new-title" name="title" type="text" placeholder="Add a task..." autocomplete="off" required />
+          </div>
+          <div class="field-group">
+            <label for="new-due">Due date <span aria-hidden="true">(optional)</span></label>
+            <input id="new-due" name="dueAt" type="date" />
+          </div>
+          <div class="field-group">
+            <label for="new-priority">Priority <span aria-hidden="true">(optional)</span></label>
+            <select id="new-priority" name="priority">
+              <option value="">No priority</option>
+              <option value="low">Low</option>
+              <option value="med">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="field-group submit-group">
+            <label class="sr-only" for="submit-task">Add task</label>
+            <button id="submit-task" type="submit">Add</button>
+          </div>
+        </form>
+
+        <!-- Filtres (toutes/actives/completées) et tri -->
+        <section class="controls">
+          <div class="filters" role="group" aria-label="Filters">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="active" aria-pressed="false">Active</button>
+            <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
+          </div>
+          <label class="sr-only" for="sort">Sort tasks</label>
+          <select id="sort" name="sort">
+            <option value="created">Sort: Created</option>
+            <option value="dueAt">Sort: Due</option>
+            <option value="priority">Sort: Priority</option>
+          </select>
+        </section>
+
+        <!-- Message affiché quand il n'y a aucune tâche -->
+        <p id="empty" class="empty" role="status" aria-live="polite">No tasks yet. Add one above to get started.</p>
+        <!-- Liste où les tâches sont rendues dynamiquement -->
+        <ul id="list" aria-live="polite" data-test-id="task-list"></ul>
+      </section>
     </main>
 
+    <!-- Modèle d'élément tâche (utilisé en JS pour cloner) -->
     <template id="task-template">
       <li class="task" data-test-id="task-item">
         <div class="task-main">
@@ -67,6 +164,7 @@
       </li>
     </template>
 
+    <!-- Script principal contenant la logique de l'application -->
     <script src="app.js" type="module"></script>
   </body>
 </html>

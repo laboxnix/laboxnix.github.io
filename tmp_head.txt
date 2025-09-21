@@ -1,0 +1,120 @@
+﻿const TASK_KEY_PREFIX = 'todo.tasks.v1.';
+const USERS_KEY = 'todo.users.v1';
+const SESSION_KEY = 'todo.session.v1';
+
+const authSection = document.getElementById('auth-section');
+const appSection = document.getElementById('app-section');
+const authMessage = document.getElementById('auth-message');
+const loginForm = document.getElementById('login-form');
+const registerForm = document.getElementById('register-form');
+const logoutButton = document.getElementById('logout-button');
+const currentUsernameElement = document.getElementById('current-username');
+
+const form = document.getElementById('new-task-form');
+const input = document.getElementById('new-title');
+const dueInput = document.getElementById('new-due');
+const prioritySelect = document.getElementById('new-priority');
+const list = document.getElementById('list');
+const emptyMessage = document.getElementById('empty');
+const template = document.getElementById('task-template');
+const filterButtons = Array.from(document.querySelectorAll('.filters button'));
+const sortSelect = document.getElementById('sort');
+// Agenda controls
+const agendaDateInput = document.getElementById('agenda-date');
+const agendaPrevBtn = document.getElementById('agenda-prev');
+const agendaNextBtn = document.getElementById('agenda-next');
+const agendaTodayBtn = document.getElementById('agenda-today');
+const agendaScopeSelect = document.getElementById('agenda-scope');
+
+let defaultSortValue = 'created';
+if (sortSelect && sortSelect.options && sortSelect.options.length > 0) {
+  defaultSortValue = sortSelect.options[0].value || defaultSortValue;
+} else if (sortSelect) {
+  defaultSortValue = sortSelect.value || defaultSortValue;
+}
+
+let tasks = [];
+let currentAccount = null;
+let currentFilter = 'all';
+let currentSort = sortSelect ? sortSelect.value : defaultSortValue;
+let pendingFocus = null;
+// Agenda state: scope can be 'all' | 'day' | 'week'
+let agendaScope = 'all';
+let agendaDate = todayISO();
+
+if (loginForm) {
+  loginForm.addEventListener('submit', handleLogin);
+}
+
+if (registerForm) {
+  registerForm.addEventListener('submit', handleRegister);
+}
+
+if (logoutButton) {
+  logoutButton.addEventListener('click', handleLogout);
+}
+
+if (form) {
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!currentAccount) {
+      setAuthMessage('Sign in to add tasks.', true);
+      if (loginForm) {
+        const field = loginForm.querySelector('input');
+        if (field) field.focus();
+      }
+      return;
+    }
+
+    const title = input.value.trim();
+    if (!title) {
+      input.focus();
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const dueAt = normalizeDate(dueInput.value);
+    const priority = normalizePriority(prioritySelect.value);
+    const task = {
+      id: createId(),
+      title,
+      completed: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      description: undefined,
+      dueAt,
+      priority,
+    };
+
+    tasks = [task, ...tasks];
+    saveTasks();
+    render();
+
+    form.reset();
+    input.focus();
+  });
+}
+
+filterButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    currentFilter = button.dataset.filter;
+    updateFilterButtons();
+    render();
+  });
+});
+
+if (sortSelect) {
+  sortSelect.addEventListener('change', () => {
+    currentSort = sortSelect.value;
+    render();
+  });
+}
+
+if (list) {
+  list.addEventListener('change', event => {
+    if (!currentAccount) return;
+    const checkbox = event.target.closest('.task-toggle');
+    if (!checkbox) return;
+    const listItem = checkbox.closest('.task');
+    const { id } = listItem.dataset;
+    pendingFocus = { type: 'task', id, selector: '.task-toggle' };

@@ -1,0 +1,481 @@
+﻿  }
+}
+
+function saveUsers(users) {
+  window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+async function registerUser(username, password) {
+  const cleanName = username.trim();
+  if (cleanName.length < 3) {
+    throw new Error('Username must be at least 3 characters long.');
+  }
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.');
+  }
+  const normalized = normalizeUsername(cleanName);
+  if (!normalized) {
+    throw new Error('Username is required.');
+  }
+
+  const users = loadUsers();
+  if (users[normalized]) {
+    throw new Error('That username is already taken.');
+  }
+
+  const passwordHash = await hashPassword(password);
+  users[normalized] = {
+    passwordHash,
+    displayName: cleanName,
+    createdAt: new Date().toISOString(),
+  };
+  saveUsers(users);
+  return { id: normalized, displayName: cleanName };
+}
+
+async function authenticateUser(username, password) {
+  const cleanName = username.trim();
+  const normalized = normalizeUsername(cleanName);
+  if (!normalized) {
+    throw new Error('Enter your username to sign in.');
+  }
+
+  const users = loadUsers();
+  const record = users[normalized];
+  if (!record) {
+    throw new Error('Account not found.');
+  }
+
+  const passwordHash = await hashPassword(password);
+  if (record.passwordHash !== passwordHash) {
+    throw new Error('Incorrect password.');
+  }
+
+  const displayName = record.displayName || cleanName;
+  return { id: normalized, displayName };
+}
+
+function loadSession() {
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const id = typeof parsed.id === 'string' ? parsed.id : null;
+    if (!id) return null;
+    const users = loadUsers();
+    const record = users[id];
+    if (!record) {
+      window.localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    const displayName = record.displayName || parsed.displayName || id;
+    return { id, displayName };
+  } catch (error) {
+    console.warn('Failed to restore session', error);
+    window.localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+function getTaskStorageKey(accountId = currentAccount ? currentAccount.id : null) {
+  if (!accountId) return null;
+  return `${TASK_KEY_PREFIX}${accountId}`;
+}
+
+function loadTasks(accountId = currentAccount ? currentAccount.id : null) {
+  const key = getTaskStorageKey(accountId);
+  if (!key) return [];
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeTask).filter(Boolean);
+  } catch (error) {
+    console.warn('Failed to parse stored tasks', error);
+    return [];
+  }
+}
+
+function saveTasks() {
+  const key = getTaskStorageKey();
+  if (!key) return;
+  window.localStorage.setItem(key, JSON.stringify(tasks));
+}
+
+function normalizeTask(task) {
+  if (!task || typeof task !== 'object') return undefined;
+  if (typeof task.id !== 'string' || typeof task.title !== 'string') return undefined;
+  return {
+    id: task.id,
+    title: task.title,
+    completed: Boolean(task.completed),
+    description: typeof task.description === 'string' ? task.description : undefined,
+    createdAt: typeof task.createdAt === 'string' ? task.createdAt : new Date().toISOString(),
+    updatedAt: typeof task.updatedAt === 'string' ? task.updatedAt : new Date().toISOString(),
+    dueAt: normalizeDate(task.dueAt),
+    priority: normalizePriority(task.priority),
+  };
+}
+
+function render() {
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!currentAccount) {
+    emptyMessage.hidden = true;
+    return;
+  }
+
+  const visible = getVisibleTasks();
+  emptyMessage.hidden = visible.length > 0;
+
+  const fragment = document.createDocumentFragment();
+  visible.forEach(task => {
+    const node = template.content.firstElementChild.cloneNode(true);
+    node.dataset.id = task.id;
+    if (task.completed) node.classList.add('completed');
+    if (task.priority) node.dataset.priority = task.priority;
+
+    const checkbox = node.querySelector('.task-toggle');
+    checkbox.checked = task.completed;
+    checkbox.setAttribute('aria-label', `Mark ${task.title} as ${task.completed ? 'incomplete' : 'complete'}`);
+
+    const titleEl = node.querySelector('.task-title');
+    titleEl.textContent = task.title;
+
+    const meta = node.querySelector('.task-meta');
+    meta.textContent = formatMeta(task);
+    meta.hidden = meta.textContent.length === 0;
+
+    fragment.appendChild(node);
+  });
+
+  list.appendChild(fragment);
+  updateFilterButtons();
+  focusPendingTarget();
+}
+
+function updateFilterButtons() {
+  const isAuthenticated = Boolean(currentAccount);
+  filterButtons.forEach(button => {
+    const isActive = button.dataset.filter === currentFilter;
+    button.setAttribute('aria-pressed', String(isActive));
+    button.disabled = !isAuthenticated;
+  });
+}
+
+function focusPendingTarget() {
+  if (!pendingFocus) return;
+  let target = null;
+  if (pendingFocus.type === 'task' && pendingFocus.id) {
+    target = list.querySelector(`.task[data-id="${pendingFocus.id}"] ${pendingFocus.selector}`);
+  } else if (pendingFocus.type === 'element') {
+    target = document.querySelector(pendingFocus.selector);
+  }
+  pendingFocus = null;
+
+  if (target) {
+    window.requestAnimationFrame(() => {
+      target.focus();
+    });
+  }
+}
+
+function getVisibleTasks() {
+  let filtered = tasks.filter(task => {
+    if (currentFilter === 'active') {
+      return !task.completed;
+    }
+    if (currentFilter === 'completed') {
+      return task.completed;
+    }
+    return true;
+  });
+
+  if (agendaScope === 'day') {
+    filtered = filtered.filter(task => task.dueAt && task.dueAt === agendaDate);
+  } else if (agendaScope === 'week') {
+    const { start, end } = getWeekRangeISO(agendaDate);
+    filtered = filtered.filter(task => task.dueAt && task.dueAt >= start && task.dueAt <= end);
+  }
+
+  return sortTasks(filtered);
+}
+
+function sortTasks(listToSort) {
+  const copy = [...listToSort];
+  if (currentSort === 'dueAt') {
+    copy.sort((a, b) => {
+      if (!a.dueAt && !b.dueAt) return compareCreated(a, b);
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      const diff = new Date(a.dueAt) - new Date(b.dueAt);
+      if (diff !== 0) return diff;
+      return compareCreated(a, b);
+    });
+    return copy;
+  }
+
+  if (currentSort === 'priority') {
+    const priorityRank = { high: 0, med: 1, low: 2, none: 3 };
+    copy.sort((a, b) => {
+      const rankA = priorityRank[a.priority || 'none'];
+      const rankB = priorityRank[b.priority || 'none'];
+      if (rankA !== rankB) return rankA - rankB;
+      return compareCreated(a, b);
+    });
+    return copy;
+  }
+
+  copy.sort(compareCreated);
+  return copy;
+}
+
+function compareCreated(a, b) {
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+function formatMeta(task) {
+  const parts = [];
+  if (task.priority) {
+    parts.push(formatPriority(task.priority));
+  }
+  if (task.dueAt) {
+    parts.push(formatDueDate(task.dueAt));
+  }
+  return parts.join(' • ');
+}
+
+function formatPriority(priority) {
+  if (priority === 'high') return 'High priority';
+  if (priority === 'med') return 'Medium priority';
+  if (priority === 'low') return 'Low priority';
+  return '';
+}
+
+function formatDueDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+  const formatted = formatter.format(date);
+  if (isPastDue(value)) {
+    return `${formatted} (past due)`;
+  }
+  return formatted;
+}
+
+function isPastDue(value) {
+  if (!value) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(value);
+  due.setHours(0, 0, 0, 0);
+  return due.getTime() < today.getTime();
+}
+
+function normalizeDate(value) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizePriority(value) {
+  if (value === 'low' || value === 'med' || value === 'high') {
+    return value;
+  }
+  return undefined;
+}
+
+function todayISO() {
+  const d = new Date();
+  // convert to local date in ISO yyyy-mm-dd
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+function parseISOToLocalDate(iso) {
+  if (!iso || typeof iso !== 'string') return new Date();
+  const parts = iso.split('-').map(Number);
+  const d = new Date();
+  d.setFullYear(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function toISODateLocal(d) {
+  const copy = new Date(d.getTime());
+  copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+  return copy.toISOString().slice(0, 10);
+}
+
+function addDaysISO(iso, delta) {
+  const d = parseISOToLocalDate(iso);
+  d.setDate(d.getDate() + delta);
+  return toISODateLocal(d);
+}
+
+function getWeekRangeISO(anchorISO) {
+  const d = parseISOToLocalDate(anchorISO);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ...
+  const deltaToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d.getTime());
+  monday.setDate(d.getDate() + deltaToMonday);
+  const sunday = new Date(monday.getTime());
+  sunday.setDate(monday.getDate() + 6);
+  return { start: toISODateLocal(monday), end: toISODateLocal(sunday) };
+}
+
+function syncAgendaToForm() {
+  if (!dueInput) return;
+  if (agendaScope === 'day' || agendaScope === 'week') {
+    // default new task due date to selected agenda date
+    dueInput.value = agendaDate;
+  }
+}
+
+function updateTask(id, nextFields) {
+  if (!currentAccount) return;
+  let changed = false;
+  tasks = tasks.map(task => {
+    if (task.id !== id) return task;
+    let taskChanged = false;
+    const updated = { ...task };
+    Object.entries(nextFields).forEach(([key, value]) => {
+      if (updated[key] !== value) {
+        updated[key] = value;
+        taskChanged = true;
+      }
+    });
+    if (taskChanged) {
+      updated.updatedAt = new Date().toISOString();
+      changed = true;
+      return updated;
+    }
+    return task;
+  });
+
+  if (!changed) {
+    pendingFocus = null;
+    return;
+  }
+
+  saveTasks();
+  render();
+}
+
+function deleteTask(id) {
+  if (!currentAccount) return;
+  const next = tasks.filter(task => task.id !== id);
+  if (next.length === tasks.length) {
+    pendingFocus = null;
+    return;
+  }
+  tasks = next;
+  saveTasks();
+  render();
+}
+
+function findTask(id) {
+  return tasks.find(task => task.id === id);
+}
+
+function startEdit(id, listItem) {
+  if (!currentAccount) return;
+  const task = findTask(id);
+  if (!task) return;
+  if (listItem.querySelector('.inline-edit')) return;
+
+  listItem.classList.add('editing');
+
+  const main = listItem.querySelector('.task-main');
+  const actions = listItem.querySelector('.task-actions');
+  if (main) main.hidden = true;
+  if (actions) actions.hidden = true;
+
+  const inlineForm = document.createElement('form');
+  inlineForm.className = 'inline-edit';
+
+  const label = document.createElement('label');
+  label.className = 'sr-only';
+  label.setAttribute('for', `edit-${id}`);
+  label.textContent = 'Edit task title';
+
+  const field = document.createElement('input');
+  field.type = 'text';
+  field.id = `edit-${id}`;
+  field.value = task.title;
+  field.required = true;
+
+  const save = document.createElement('button');
+  save.type = 'submit';
+  save.className = 'save';
+  save.textContent = 'Save';
+
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'cancel';
+  cancel.textContent = 'Cancel';
+
+  inlineForm.append(label, field, save, cancel);
+  listItem.appendChild(inlineForm);
+
+  const cleanup = () => {
+    if (inlineForm.isConnected) {
+      inlineForm.remove();
+    }
+    listItem.classList.remove('editing');
+    if (main && main.isConnected) main.hidden = false;
+    if (actions && actions.isConnected) actions.hidden = false;
+  };
+
+  cancel.addEventListener('click', () => {
+    cleanup();
+    const editBtn = listItem.querySelector('.task-edit');
+    if (editBtn) editBtn.focus();
+  });
+
+  inlineForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const nextTitle = field.value.trim();
+    if (!nextTitle) {
+      field.focus();
+      return;
+    }
+    cleanup();
+    if (nextTitle !== task.title) {
+      pendingFocus = { type: 'task', id, selector: '.task-edit' };
+      updateTask(id, { title: nextTitle });
+    } else {
+      const editBtn = list.querySelector(`.task[data-id="${id}"] .task-edit`);
+      if (editBtn) editBtn.focus();
+    }
+  });
+
+  field.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancel.click();
+    }
+  });
+
+  window.requestAnimationFrame(() => {
+    field.focus();
+    field.select();
+  });
+}
+
+async function hashPassword(password) {
+  if (window.crypto && window.crypto.subtle && window.TextEncoder) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
