@@ -94,6 +94,15 @@ body {
 .menu-readonly select {
   width: 100%;
 }
+.visually-hidden-file {
+  position: fixed;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
 /* Contrôles de navigation de l'agenda */
 .agenda-nav {
   display: inline-flex;
