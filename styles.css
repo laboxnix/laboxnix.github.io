@@ -282,19 +282,17 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  aspect-ratio: 1 / 1;
-  min-height: 52px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
-  border-radius: 16px;
-  font-size: 1rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #fff;
   background: var(--ring);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
 }
 
 
@@ -386,6 +384,7 @@ h1 {
 
 .task.has-custom-color {
   border-left-color: var(--task-accent);
+  background: var(--task-bg, var(--card));
 }
 
 .task:hover {
@@ -526,23 +525,6 @@ h1 {
   .submit-group {
     grid-column: 1 / -1;
   }
-}
-
-
-    align-self: end;
-    width: 52px;\n  height: 52px;
-    padding: 0;
-    border: none;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
-    background: var(--ring);
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-}
-
 
   .task {
     grid-template-columns: 1fr;
@@ -552,17 +534,6 @@ h1 {
     justify-content: flex-end;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -624,8 +595,8 @@ h1 {
   }
 
   .submit-group button {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
   }
 }
 

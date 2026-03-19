@@ -789,6 +789,7 @@ function render() {
     if (task.color) {
       node.classList.add('has-custom-color');
       node.style.setProperty('--task-accent', task.color);
+      node.style.setProperty('--task-bg', hexToRgba(task.color, 0.16));
     }
 
     const checkbox = node.querySelector('.task-toggle');
@@ -966,6 +967,16 @@ function normalizeColor(value) {
   const color = value.trim();
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) return undefined;
   return color.toLowerCase();
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const normalized = normalizeColor(hex);
+  if (!normalized) return `rgba(255, 255, 255, ${alpha})`;
+  const r = Number.parseInt(normalized.slice(1, 3), 16);
+  const g = Number.parseInt(normalized.slice(3, 5), 16);
+  const b = Number.parseInt(normalized.slice(5, 7), 16);
+  const safeAlpha = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 1;
+  return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
 }
 
 // Retourne la date du jour au format ISO local (yyyy-mm-dd)
