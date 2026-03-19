@@ -32,6 +32,7 @@ const form = document.getElementById('new-task-form');
 const input = document.getElementById('new-title');
 const dueInput = document.getElementById('new-due');
 const prioritySelect = document.getElementById('new-priority');
+const colorInput = document.getElementById('new-color');
 const list = document.getElementById('list');
 const emptyMessage = document.getElementById('empty');
 const template = document.getElementById('task-template');
@@ -178,6 +179,7 @@ if (form) {
     const timestamp = new Date().toISOString();
     const dueAt = normalizeDate(dueInput.value);
     const priority = normalizePriority(prioritySelect.value);
+    const color = normalizeColor(colorInput ? colorInput.value : undefined);
     const task = {
       id: createId(),
       title,
@@ -187,6 +189,7 @@ if (form) {
       description: undefined,
       dueAt,
       priority,
+      color,
     };
 
     tasks = [task, ...tasks];
@@ -194,6 +197,7 @@ if (form) {
     render();
 
     form.reset();
+    if (colorInput) colorInput.value = '#2684ff';
     input.focus();
   });
 }
@@ -596,7 +600,7 @@ function updateAgendaControls() {
 
 function updateTaskCreationControls() {
   const disabled = !currentAccount;
-  [input, dueInput, prioritySelect].forEach(el => {
+  [input, dueInput, prioritySelect, colorInput].forEach(el => {
     if (el) el.disabled = disabled;
   });
   const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
@@ -757,6 +761,7 @@ function normalizeTask(task) {
     updatedAt: typeof task.updatedAt === 'string' ? task.updatedAt : new Date().toISOString(),
     dueAt: normalizeDate(task.dueAt),
     priority: normalizePriority(task.priority),
+    color: normalizeColor(task.color),
   };
 }
 
@@ -781,6 +786,10 @@ function render() {
     node.dataset.id = task.id;
     if (task.completed) node.classList.add('completed');
     if (task.priority) node.dataset.priority = task.priority;
+    if (task.color) {
+      node.classList.add('has-custom-color');
+      node.style.setProperty('--task-accent', task.color);
+    }
 
     const checkbox = node.querySelector('.task-toggle');
     checkbox.checked = task.completed;
@@ -952,6 +961,13 @@ function normalizePriority(value) {
   return undefined;
 }
 
+function normalizeColor(value) {
+  if (typeof value !== 'string') return undefined;
+  const color = value.trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return undefined;
+  return color.toLowerCase();
+}
+
 // Retourne la date du jour au format ISO local (yyyy-mm-dd)
 function todayISO() {
   const d = new Date();
@@ -1037,7 +1053,7 @@ function closeMenu() {
 function exportVisibleTasksToCSV() {
   if (!getActiveAccount()) return; // disabled from UI otherwise
   const visible = getVisibleTasks();
-  const headers = ['id','title','completed','createdAt','updatedAt','dueAt','priority'];
+  const headers = ['id','title','completed','createdAt','updatedAt','dueAt','priority','color'];
   const lines = [headers.join(',')];
   const escape = (val) => {
     if (val === undefined || val === null) return '';
@@ -1048,7 +1064,7 @@ function exportVisibleTasksToCSV() {
     return s;
   };
   visible.forEach(t => {
-    const row = [t.id, t.title, t.completed, t.createdAt, t.updatedAt, t.dueAt || '', t.priority || ''].map(escape).join(',');
+    const row = [t.id, t.title, t.completed, t.createdAt, t.updatedAt, t.dueAt || '', t.priority || '', t.color || ''].map(escape).join(',');
     lines.push(row);
   });
   const content = lines.join('\n');
@@ -1246,6 +1262,12 @@ function startEdit(id, listItem) {
   field.value = task.title;
   field.required = true;
 
+  const colorField = document.createElement('input');
+  colorField.type = 'color';
+  colorField.value = task.color || '#2684ff';
+  colorField.setAttribute('aria-label', 'Task color');
+  colorField.title = 'Task color';
+
   const save = document.createElement('button');
   save.type = 'submit';
   save.className = 'save';
@@ -1256,7 +1278,7 @@ function startEdit(id, listItem) {
   cancel.className = 'cancel';
   cancel.textContent = 'Cancel';
 
-  inlineForm.append(label, field, save, cancel);
+  inlineForm.append(label, field, colorField, save, cancel);
   listItem.appendChild(inlineForm);
 
   const cleanup = () => {
@@ -1281,10 +1303,11 @@ function startEdit(id, listItem) {
       field.focus();
       return;
     }
+    const nextColor = normalizeColor(colorField.value);
     cleanup();
-    if (nextTitle !== task.title) {
+    if (nextTitle !== task.title || nextColor !== task.color) {
       pendingFocus = { type: 'task', id, selector: '.task-edit' };
-      updateTask(id, { title: nextTitle });
+      updateTask(id, { title: nextTitle, color: nextColor });
     } else {
       const editBtn = list.querySelector(`.task[data-id="${id}"] .task-edit`);
       if (editBtn) editBtn.focus();

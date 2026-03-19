@@ -226,7 +226,7 @@ h1 {
 #new-task-form {
   display: grid;
   gap: var(--gap);
-  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)) auto;
   align-items: end;
   padding: 0;
   margin-bottom: 24px;
@@ -257,6 +257,12 @@ h1 {
   font-size: 1rem;
   color: var(--fg);
   background: var(--card);
+}
+
+.field-group input[type="color"] {
+  min-height: 48px;
+  padding: 4px;
+  cursor: pointer;
 }
 
 .field-group input:focus,
@@ -373,8 +379,13 @@ h1 {
   padding: 16px;
   background: var(--card);
   border-radius: 14px;
+  border-left: 4px solid transparent;
   box-shadow: var(--shadow);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task.has-custom-color {
+  border-left-color: var(--task-accent);
 }
 
 .task:hover {
@@ -459,6 +470,16 @@ h1 {
   border-radius: 10px;
   border: 1px solid var(--border);
   font-size: 1rem;
+}
+
+.inline-edit input[type="color"] {
+  width: 44px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px;
+  background: var(--card);
+  cursor: pointer;
 }
 
 .inline-edit input[type="text"]:focus {
