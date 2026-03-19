@@ -97,7 +97,15 @@ if (menuImportBackupBtn) {
     if (!menuImportBackupFile) return;
     closeMenu();
     menuImportBackupFile.value = '';
-    menuImportBackupFile.click();
+    try {
+      if (typeof menuImportBackupFile.showPicker === 'function') {
+        menuImportBackupFile.showPicker();
+      } else {
+        menuImportBackupFile.click();
+      }
+    } catch (error) {
+      menuImportBackupFile.click();
+    }
   });
 }
 if (menuImportBackupFile) {
@@ -1092,6 +1100,7 @@ function exportBackup() {
   const fileName = `todo-backup-${stamp.getFullYear()}${pad(stamp.getMonth()+1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}.json`;
   downloadTextFile(content, fileName, 'application/json;charset=utf-8;');
   setAuthMessage('Sauvegarde exportée (.json).');
+  window.alert(`Sauvegarde exportée: ${fileName}`);
 }
 
 function importBackupFromText(rawText) {
@@ -1157,6 +1166,7 @@ function importBackupFromText(rawText) {
   }
 
   setAuthMessage('Sauvegarde importée avec succès.');
+  window.alert('Sauvegarde importée avec succès.');
 }
 
 // Met à jour une tâche existante (champs modifiés + horodatage)
