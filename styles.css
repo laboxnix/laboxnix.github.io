@@ -377,14 +377,16 @@ h1 {
   padding: 16px;
   background: var(--card);
   border-radius: 14px;
-  border-left: 4px solid transparent;
+  border-left: 8px solid transparent;
   box-shadow: var(--shadow);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .task.has-custom-color {
   border-left-color: var(--task-accent);
-  background: var(--task-bg, var(--card));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--task-accent) 30%, #ffffff) 0%, var(--task-bg, var(--card)) 65%),
+    var(--task-bg, var(--card));
   box-shadow: 0 10px 25px color-mix(in srgb, var(--task-accent) 22%, rgba(31, 45, 61, 0.08));
 }
 

@@ -789,7 +789,7 @@ function render() {
     if (task.color) {
       node.classList.add('has-custom-color');
       node.style.setProperty('--task-accent', task.color);
-      node.style.setProperty('--task-bg', hexToRgba(task.color, 0.35));
+      node.style.setProperty('--task-bg', hexToRgba(task.color, 0.50));
     }
 
     const checkbox = node.querySelector('.task-toggle');
