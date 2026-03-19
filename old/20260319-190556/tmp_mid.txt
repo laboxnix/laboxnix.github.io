@@ -1,0 +1,241 @@
+﻿    updateTask(id, {
+      completed: checkbox.checked,
+    });
+  });
+
+  list.addEventListener('click', event => {
+    if (!currentAccount) return;
+    const editButton = event.target.closest('.task-edit');
+    if (editButton) {
+      const listItem = editButton.closest('.task');
+      startEdit(listItem.dataset.id, listItem);
+      return;
+    }
+
+    const deleteButton = event.target.closest('.task-delete');
+    if (deleteButton) {
+      const listItem = deleteButton.closest('.task');
+      const task = findTask(listItem.dataset.id);
+      if (!task) return;
+
+      const ok = window.confirm(`Delete task "${task.title}"?`);
+      if (!ok) return;
+
+      const siblings = Array.from(list.querySelectorAll('.task'));
+      const index = siblings.indexOf(listItem);
+      const nextSibling = siblings[index + 1] || siblings[index - 1];
+      if (nextSibling) {
+        pendingFocus = { type: 'task', id: nextSibling.dataset.id, selector: '.task-edit' };
+      } else {
+        pendingFocus = { type: 'element', selector: '#new-title' };
+      }
+
+      deleteTask(task.id);
+    }
+  });
+}
+
+// Agenda events
+if (agendaDateInput) {
+  agendaDateInput.addEventListener('change', () => {
+    const next = normalizeDate(agendaDateInput.value);
+    agendaDate = next || todayISO();
+    syncAgendaToForm();
+    render();
+  });
+}
+if (agendaPrevBtn) {
+  agendaPrevBtn.addEventListener('click', () => {
+    agendaDate = addDaysISO(agendaDate, -1);
+    if (agendaDateInput) agendaDateInput.value = agendaDate;
+    syncAgendaToForm();
+    render();
+  });
+}
+if (agendaNextBtn) {
+  agendaNextBtn.addEventListener('click', () => {
+    agendaDate = addDaysISO(agendaDate, 1);
+    if (agendaDateInput) agendaDateInput.value = agendaDate;
+    syncAgendaToForm();
+    render();
+  });
+}
+if (agendaTodayBtn) {
+  agendaTodayBtn.addEventListener('click', () => {
+    agendaDate = todayISO();
+    if (agendaDateInput) agendaDateInput.value = agendaDate;
+    syncAgendaToForm();
+    render();
+  });
+}
+if (agendaScopeSelect) {
+  agendaScopeSelect.addEventListener('change', () => {
+    agendaScope = agendaScopeSelect.value || 'all';
+    syncAgendaToForm();
+    render();
+  });
+}
+
+initialize();
+
+function initialize() {
+  const sessionAccount = loadSession();
+  if (sessionAccount) {
+    setAuthMessage('');
+    setCurrentAccount(sessionAccount);
+    return;
+  }
+
+  updateAuthVisibility();
+  // Initialize agenda controls
+  if (agendaDateInput) agendaDateInput.value = agendaDate;
+  if (agendaScopeSelect) agendaScopeSelect.value = agendaScope;
+  updateAgendaControls();
+  updateFilterButtons();
+  render();
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  if (!loginForm) return;
+
+  const formData = new FormData(loginForm);
+  const username = String(formData.get('username') || '').trim();
+  const password = String(formData.get('password') || '');
+  if (!username || !password) {
+    setAuthMessage('Username and password are required.', true);
+    return;
+  }
+
+  try {
+    const account = await authenticateUser(username, password);
+    loginForm.reset();
+    setAuthMessage('');
+    setCurrentAccount(account);
+  } catch (error) {
+    setAuthMessage(error instanceof Error ? error.message : 'Unable to sign in.', true);
+  }
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  if (!registerForm) return;
+
+  const formData = new FormData(registerForm);
+  const username = String(formData.get('username') || '').trim();
+  const password = String(formData.get('password') || '');
+  const confirm = String(formData.get('confirm') || '');
+
+  if (!username || !password) {
+    setAuthMessage('Choose a username and password to continue.', true);
+    return;
+  }
+
+  if (password !== confirm) {
+    setAuthMessage('Passwords do not match.', true);
+    return;
+  }
+
+  try {
+    const account = await registerUser(username, password);
+    registerForm.reset();
+    if (loginForm) loginForm.reset();
+    setAuthMessage('Account created and signed in.');
+    setCurrentAccount(account);
+  } catch (error) {
+    setAuthMessage(error instanceof Error ? error.message : 'Unable to create account.', true);
+  }
+}
+
+function handleLogout() {
+  setCurrentAccount(null);
+  if (loginForm) loginForm.reset();
+  if (registerForm) registerForm.reset();
+  setAuthMessage('Signed out. Sign in to continue.');
+  if (loginForm) {
+    const field = loginForm.querySelector('input');
+    if (field) field.focus();
+  }
+}
+
+function setCurrentAccount(account) {
+  currentAccount = account;
+  if (account) {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
+    tasks = loadTasks(account.id);
+    if (currentUsernameElement) {
+      currentUsernameElement.textContent = account.displayName;
+    }
+    currentFilter = 'all';
+    if (sortSelect) {
+      sortSelect.value = defaultSortValue;
+      currentSort = sortSelect.value;
+    } else {
+      currentSort = defaultSortValue;
+    }
+    if (agendaDateInput) agendaDateInput.value = agendaDate;
+    if (agendaScopeSelect) agendaScopeSelect.value = agendaScope;
+  } else {
+    window.localStorage.removeItem(SESSION_KEY);
+    tasks = [];
+    if (currentUsernameElement) {
+      currentUsernameElement.textContent = '';
+    }
+    currentFilter = 'all';
+    if (sortSelect) {
+      sortSelect.value = defaultSortValue;
+      currentSort = sortSelect.value;
+    } else {
+      currentSort = defaultSortValue;
+    }
+  }
+
+  pendingFocus = null;
+  updateAuthVisibility();
+  updateAgendaControls();
+  updateFilterButtons();
+  render();
+}
+
+function updateAuthVisibility() {
+  const isAuthenticated = Boolean(currentAccount);
+  if (authSection) authSection.hidden = isAuthenticated;
+  if (appSection) appSection.hidden = !isAuthenticated;
+  if (!isAuthenticated && form) {
+    form.reset();
+  }
+}
+
+function updateAgendaControls() {
+  const disabled = !currentAccount;
+  [agendaDateInput, agendaPrevBtn, agendaNextBtn, agendaTodayBtn, agendaScopeSelect]
+    .forEach(el => { if (el) el.disabled = disabled; });
+  if (!disabled) {
+    if (agendaDateInput) agendaDateInput.value = agendaDate;
+    if (agendaScopeSelect) agendaScopeSelect.value = agendaScope;
+  }
+}
+
+function setAuthMessage(message, isError = false) {
+  if (!authMessage) return;
+  authMessage.textContent = message;
+  if (message) {
+    authMessage.classList.toggle('error', Boolean(isError));
+  } else {
+    authMessage.classList.remove('error');
+  }
+}
+
+function loadUsers() {
+  try {
+    const raw = window.localStorage.getItem(USERS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    return {};
+  } catch (error) {
+    console.warn('Failed to load stored users', error);
+    return {};
+  }
