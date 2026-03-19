@@ -385,6 +385,7 @@ h1 {
 .task.has-custom-color {
   border-left-color: var(--task-accent);
   background: var(--task-bg, var(--card));
+  box-shadow: 0 10px 25px color-mix(in srgb, var(--task-accent) 22%, rgba(31, 45, 61, 0.08));
 }
 
 .task:hover {
