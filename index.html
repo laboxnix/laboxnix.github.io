@@ -19,6 +19,12 @@
           <button id="menu-button" class="menu-button" aria-expanded="false" aria-haspopup="true">Menu</button>
           <div id="menu-popover" class="menu-popover" role="menu" hidden>
             <button id="menu-export" type="button" role="menuitem">Export CSV</button>
+            <div class="menu-readonly" role="none">
+              <label for="menu-readonly-account">Travail en cours (lecture seule)</label>
+              <select id="menu-readonly-account" aria-label="Travail en cours (lecture seule)">
+                <option value="">Choisir un compte…</option>
+              </select>
+            </div>
             <button id="menu-auth" type="button" role="menuitem">Sign in</button>
           </div>
         </div>
@@ -73,7 +79,7 @@
       <!-- Section principale visible après connexion -->
       <section id="app-section" class="panel" hidden>
         <header class="user-bar">
-          <p class="user-status">Signed in as <span id="current-username"></span></p>
+          <p class="user-status"><span id="current-mode-label">Signed in as</span> <span id="current-username"></span></p>
         </header>
 
         <!-- Agenda: naviguer par jour/semaine pour afficher/planifier -->

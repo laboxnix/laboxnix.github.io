@@ -17,11 +17,13 @@ const authMessage = document.getElementById('auth-message');
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
 const currentUsernameElement = document.getElementById('current-username');
+const currentModeLabel = document.getElementById('current-mode-label');
 // Top-right menu
 const menuButton = document.getElementById('menu-button');
 const menuPopover = document.getElementById('menu-popover');
 const menuExportBtn = document.getElementById('menu-export');
 const menuAuthBtn = document.getElementById('menu-auth');
+const menuReadonlyAccountSelect = document.getElementById('menu-readonly-account');
 
 const form = document.getElementById('new-task-form');
 const input = document.getElementById('new-title');
@@ -51,6 +53,7 @@ if (sortSelect && sortSelect.options && sortSelect.options.length > 0) {
 
 let tasks = [];
 let currentAccount = null;
+let previewAccount = null;
 let currentFilter = 'all';
 let currentSort = sortSelect ? sortSelect.value : defaultSortValue;
 let pendingFocus = null;
@@ -86,12 +89,20 @@ if (menuAuthBtn) {
     if (currentAccount) {
       handleLogout();
     } else {
+      clearPreviewAccount();
       if (loginForm) {
         const field = loginForm.querySelector('input');
         if (field) field.focus();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
+  });
+}
+if (menuReadonlyAccountSelect) {
+  menuReadonlyAccountSelect.addEventListener('change', () => {
+    const nextAccountId = menuReadonlyAccountSelect.value;
+    setPreviewAccount(nextAccountId);
+    closeMenu();
   });
 }
 document.addEventListener('click', (e) => {
@@ -113,8 +124,8 @@ if (form) {
   form.addEventListener('submit', event => {
     event.preventDefault();
     if (!currentAccount) {
-      setAuthMessage('Sign in to add tasks.', true);
-      if (loginForm) {
+      setAuthMessage(isReadOnlyMode() ? 'Lecture seule: connecte-toi pour ajouter des tâches.' : 'Sign in to add tasks.', true);
+      if (!isReadOnlyMode() && loginForm) {
         const field = loginForm.querySelector('input');
         if (field) field.focus();
       }
@@ -269,12 +280,14 @@ function initialize() {
   }
 
   updateAuthVisibility();
+  populateReadonlyAccountsMenu();
   updateMenuState();
   // Initialize agenda controls
   if (agendaDateInput) agendaDateInput.value = agendaDate;
   if (agendaScopeSelect) agendaScopeSelect.value = agendaScope;
   setAgendaCollapsed(false);
   updateAgendaControls();
+  updateTaskCreationControls();
   updateFilterButtons();
   render();
 }
@@ -347,11 +360,15 @@ function handleLogout() {
 // Met à jour l'utilisateur courant (connexion/déconnexion)
 function setCurrentAccount(account) {
   currentAccount = account;
+  previewAccount = null;
   if (account) {
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
     tasks = loadTasks(account.id);
     if (currentUsernameElement) {
       currentUsernameElement.textContent = account.displayName;
+    }
+    if (currentModeLabel) {
+      currentModeLabel.textContent = 'Signed in as';
     }
     currentFilter = 'all';
     if (sortSelect) {
@@ -368,6 +385,9 @@ function setCurrentAccount(account) {
     if (currentUsernameElement) {
       currentUsernameElement.textContent = '';
     }
+    if (currentModeLabel) {
+      currentModeLabel.textContent = 'Signed in as';
+    }
     currentFilter = 'all';
     if (sortSelect) {
       sortSelect.value = defaultSortValue;
@@ -379,44 +399,165 @@ function setCurrentAccount(account) {
 
   pendingFocus = null;
   updateAuthVisibility();
+  populateReadonlyAccountsMenu();
   updateMenuState();
   updateAgendaControls();
+  updateTaskCreationControls();
+  updateFilterButtons();
+  render();
+}
+
+function isReadOnlyMode() {
+  return !currentAccount && Boolean(previewAccount);
+}
+
+function getActiveAccount() {
+  return currentAccount || previewAccount;
+}
+
+function listAvailableAccounts() {
+  const users = loadUsers();
+  return Object.entries(users).map(([id, record]) => ({
+    id,
+    displayName: record && record.displayName ? record.displayName : id,
+  })).sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
+}
+
+function populateReadonlyAccountsMenu() {
+  if (!menuReadonlyAccountSelect) return;
+  const accounts = listAvailableAccounts();
+  const options = ['<option value="">Choisir un compte…</option>'];
+  accounts.forEach(account => {
+    options.push(`<option value="${escapeHtml(account.id)}">${escapeHtml(account.displayName)}</option>`);
+  });
+  menuReadonlyAccountSelect.innerHTML = options.join('');
+
+  if (currentAccount) {
+    menuReadonlyAccountSelect.value = currentAccount.id;
+  } else if (previewAccount) {
+    menuReadonlyAccountSelect.value = previewAccount.id;
+  }
+}
+
+function setPreviewAccount(accountId) {
+  if (!accountId) {
+    clearPreviewAccount();
+    return;
+  }
+  if (currentAccount && currentAccount.id === accountId) return;
+
+  const users = loadUsers();
+  const record = users[accountId];
+  if (!record) {
+    clearPreviewAccount();
+    return;
+  }
+
+  previewAccount = {
+    id: accountId,
+    displayName: record.displayName || accountId,
+  };
+  tasks = loadTasks(previewAccount.id);
+  if (currentUsernameElement) {
+    currentUsernameElement.textContent = previewAccount.displayName;
+  }
+  if (currentModeLabel) {
+    currentModeLabel.textContent = 'Read-only view:';
+  }
+  currentFilter = 'all';
+  if (sortSelect) {
+    sortSelect.value = defaultSortValue;
+    currentSort = sortSelect.value;
+  } else {
+    currentSort = defaultSortValue;
+  }
+
+  pendingFocus = null;
+  setAuthMessage('Lecture seule active. Connecte-toi pour modifier les tâches.');
+  updateAuthVisibility();
+  populateReadonlyAccountsMenu();
+  updateMenuState();
+  updateAgendaControls();
+  updateTaskCreationControls();
+  updateFilterButtons();
+  render();
+}
+
+function clearPreviewAccount() {
+  if (!previewAccount) return;
+  previewAccount = null;
+  tasks = [];
+  if (currentUsernameElement) {
+    currentUsernameElement.textContent = '';
+  }
+  if (currentModeLabel) {
+    currentModeLabel.textContent = 'Signed in as';
+  }
+  currentFilter = 'all';
+  if (sortSelect) {
+    sortSelect.value = defaultSortValue;
+    currentSort = sortSelect.value;
+  } else {
+    currentSort = defaultSortValue;
+  }
+  pendingFocus = null;
+  updateAuthVisibility();
+  populateReadonlyAccountsMenu();
+  updateMenuState();
+  updateAgendaControls();
+  updateTaskCreationControls();
   updateFilterButtons();
   render();
 }
 
 // Affiche soit la section Auth, soit l'app selon l'état de connexion
 function updateAuthVisibility() {
-  const isAuthenticated = Boolean(currentAccount);
-  if (authSection) authSection.hidden = isAuthenticated;
-  if (appSection) appSection.hidden = !isAuthenticated;
-  if (!isAuthenticated && form) {
+  const hasAccess = Boolean(getActiveAccount());
+  if (authSection) authSection.hidden = hasAccess;
+  if (appSection) appSection.hidden = !hasAccess;
+  if (!hasAccess && form) {
     form.reset();
   }
 }
 
 function updateMenuState() {
   const isAuthenticated = Boolean(currentAccount);
+  const hasAccess = Boolean(getActiveAccount());
   if (menuAuthBtn) {
     menuAuthBtn.textContent = isAuthenticated ? 'Sign out' : 'Sign in';
   }
   if (menuExportBtn) {
-    menuExportBtn.disabled = !isAuthenticated;
+    menuExportBtn.disabled = !hasAccess;
+  }
+  if (menuReadonlyAccountSelect) {
+    menuReadonlyAccountSelect.disabled = isAuthenticated;
   }
 }
 
-// Active/désactive les contrôles d'agenda selon la connexion
+// Active/désactive les contrôles d'agenda selon la connexion/lecture
 function updateAgendaControls() {
-  const disabled = !currentAccount;
+  const hasAccess = Boolean(getActiveAccount());
   [agendaDateInput, agendaPrevBtn, agendaNextBtn, agendaTodayBtn, agendaScopeSelect]
-    .forEach(el => { if (el) el.disabled = disabled; });
+    .forEach(el => { if (el) el.disabled = !hasAccess; });
   if (agendaToggleBtn) {
-    agendaToggleBtn.disabled = disabled;
+    agendaToggleBtn.disabled = !hasAccess;
   }
-  if (!disabled) {
+  if (sortSelect) {
+    sortSelect.disabled = !hasAccess;
+  }
+  if (hasAccess) {
     if (agendaDateInput) agendaDateInput.value = agendaDate;
     if (agendaScopeSelect) agendaScopeSelect.value = agendaScope;
   }
+}
+
+function updateTaskCreationControls() {
+  const disabled = !currentAccount;
+  [input, dueInput, prioritySelect].forEach(el => {
+    if (el) el.disabled = disabled;
+  });
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+  if (submitBtn) submitBtn.disabled = disabled;
 }
 
 function setAuthMessage(message, isError = false) {
@@ -427,6 +568,15 @@ function setAuthMessage(message, isError = false) {
   } else {
     authMessage.classList.remove('error');
   }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 // Charge la "table" des utilisateurs depuis localStorage
@@ -572,7 +722,9 @@ function render() {
   if (!list) return;
   list.innerHTML = '';
 
-  if (!currentAccount) {
+  const activeAccount = getActiveAccount();
+  const readOnly = isReadOnlyMode();
+  if (!activeAccount) {
     emptyMessage.hidden = true;
     return;
   }
@@ -590,6 +742,12 @@ function render() {
     const checkbox = node.querySelector('.task-toggle');
     checkbox.checked = task.completed;
     checkbox.setAttribute('aria-label', `Mark ${task.title} as ${task.completed ? 'incomplete' : 'complete'}`);
+    checkbox.disabled = readOnly;
+
+    const editBtn = node.querySelector('.task-edit');
+    const deleteBtn = node.querySelector('.task-delete');
+    if (editBtn) editBtn.disabled = readOnly;
+    if (deleteBtn) deleteBtn.disabled = readOnly;
 
     const titleEl = node.querySelector('.task-title');
     titleEl.textContent = task.title;
@@ -608,11 +766,11 @@ function render() {
 
 // Met à jour l'état visuel des boutons de filtre
 function updateFilterButtons() {
-  const isAuthenticated = Boolean(currentAccount);
+  const hasAccess = Boolean(getActiveAccount());
   filterButtons.forEach(button => {
     const isActive = button.dataset.filter === currentFilter;
     button.setAttribute('aria-pressed', String(isActive));
-    button.disabled = !isAuthenticated;
+    button.disabled = !hasAccess;
   });
 }
 

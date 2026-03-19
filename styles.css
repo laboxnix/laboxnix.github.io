@@ -81,6 +81,19 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+.menu-readonly {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+}
+.menu-readonly label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.menu-readonly select {
+  width: 100%;
+}
 /* Contrôles de navigation de l'agenda */
 .agenda-nav {
   display: inline-flex;
