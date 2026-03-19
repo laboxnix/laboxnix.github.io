@@ -19,6 +19,9 @@
           <button id="menu-button" class="menu-button" aria-expanded="false" aria-haspopup="true">Menu</button>
           <div id="menu-popover" class="menu-popover" role="menu" hidden>
             <button id="menu-export" type="button" role="menuitem">Export CSV</button>
+            <button id="menu-export-backup" type="button" role="menuitem">Export comptes+tâches</button>
+            <button id="menu-import-backup" type="button" role="menuitem">Importer sauvegarde</button>
+            <input id="menu-import-backup-file" type="file" accept="application/json,.json,text/markdown,.md" hidden />
             <div class="menu-readonly" role="none">
               <label for="menu-readonly-account">Travail en cours (lecture seule)</label>
               <select id="menu-readonly-account" aria-label="Travail en cours (lecture seule)">

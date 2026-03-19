@@ -22,6 +22,9 @@ const currentModeLabel = document.getElementById('current-mode-label');
 const menuButton = document.getElementById('menu-button');
 const menuPopover = document.getElementById('menu-popover');
 const menuExportBtn = document.getElementById('menu-export');
+const menuExportBackupBtn = document.getElementById('menu-export-backup');
+const menuImportBackupBtn = document.getElementById('menu-import-backup');
+const menuImportBackupFile = document.getElementById('menu-import-backup-file');
 const menuAuthBtn = document.getElementById('menu-auth');
 const menuReadonlyAccountSelect = document.getElementById('menu-readonly-account');
 
@@ -81,6 +84,32 @@ if (menuExportBtn) {
   menuExportBtn.addEventListener('click', () => {
     closeMenu();
     exportVisibleTasksToCSV();
+  });
+}
+if (menuExportBackupBtn) {
+  menuExportBackupBtn.addEventListener('click', () => {
+    closeMenu();
+    exportBackup();
+  });
+}
+if (menuImportBackupBtn) {
+  menuImportBackupBtn.addEventListener('click', () => {
+    if (!menuImportBackupFile) return;
+    closeMenu();
+    menuImportBackupFile.value = '';
+    menuImportBackupFile.click();
+  });
+}
+if (menuImportBackupFile) {
+  menuImportBackupFile.addEventListener('change', async () => {
+    const file = menuImportBackupFile.files && menuImportBackupFile.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      importBackupFromText(text);
+    } catch (error) {
+      setAuthMessage('Import impossible: fichier invalide.', true);
+    }
   });
 }
 if (menuAuthBtn) {
@@ -528,6 +557,12 @@ function updateMenuState() {
   }
   if (menuExportBtn) {
     menuExportBtn.disabled = !hasAccess;
+  }
+  if (menuExportBackupBtn) {
+    menuExportBackupBtn.disabled = false;
+  }
+  if (menuImportBackupBtn) {
+    menuImportBackupBtn.disabled = false;
   }
   if (menuReadonlyAccountSelect) {
     menuReadonlyAccountSelect.disabled = isAuthenticated;
@@ -992,7 +1027,7 @@ function closeMenu() {
 
 // Exporte en CSV la liste de tâches actuellement affichée à l'écran
 function exportVisibleTasksToCSV() {
-  if (!currentAccount) return; // disabled from UI otherwise
+  if (!getActiveAccount()) return; // disabled from UI otherwise
   const visible = getVisibleTasks();
   const headers = ['id','title','completed','createdAt','updatedAt','dueAt','priority'];
   const lines = [headers.join(',')];
@@ -1021,6 +1056,107 @@ function exportVisibleTasksToCSV() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function downloadTextFile(content, fileName, mimeType = 'application/json;charset=utf-8;') {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function getAllTaskMapByUser() {
+  const users = loadUsers();
+  const out = {};
+  Object.keys(users).forEach((accountId) => {
+    out[accountId] = loadTasks(accountId);
+  });
+  return out;
+}
+
+function exportBackup() {
+  const stamp = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const snapshot = {
+    version: 1,
+    exportedAt: stamp.toISOString(),
+    users: loadUsers(),
+    tasksByUser: getAllTaskMapByUser(),
+  };
+  const content = JSON.stringify(snapshot, null, 2);
+  const fileName = `todo-backup-${stamp.getFullYear()}${pad(stamp.getMonth()+1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}.json`;
+  downloadTextFile(content, fileName, 'application/json;charset=utf-8;');
+  setAuthMessage('Sauvegarde exportée (.json).');
+}
+
+function importBackupFromText(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error('Empty backup content');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (error) {
+    // optional support for .md with fenced json block
+    const match = rawText.match(/```json\s*([\s\S]*?)\s*```/i);
+    if (!match) throw error;
+    parsed = JSON.parse(match[1]);
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Invalid backup format');
+  }
+
+  const users = parsed.users;
+  const tasksByUser = parsed.tasksByUser;
+  if (!users || typeof users !== 'object' || Array.isArray(users)) {
+    throw new Error('Invalid users payload');
+  }
+  if (!tasksByUser || typeof tasksByUser !== 'object' || Array.isArray(tasksByUser)) {
+    throw new Error('Invalid tasks payload');
+  }
+
+  const accounts = Object.keys(users);
+  accounts.forEach((accountId) => {
+    const value = tasksByUser[accountId];
+    if (value !== undefined && !Array.isArray(value)) {
+      throw new Error(`Invalid tasks list for ${accountId}`);
+    }
+  });
+
+  if (!window.confirm('Importer la sauvegarde va écraser les comptes et tâches locaux. Continuer ?')) {
+    return;
+  }
+
+  saveUsers(users);
+  accounts.forEach((accountId) => {
+    const key = getTaskStorageKey(accountId);
+    if (!key) return;
+    const arr = Array.isArray(tasksByUser[accountId]) ? tasksByUser[accountId].map(normalizeTask).filter(Boolean) : [];
+    window.localStorage.setItem(key, JSON.stringify(arr));
+  });
+
+  const currentSession = loadSession();
+  if (currentSession) {
+    setCurrentAccount(currentSession);
+  } else {
+    clearPreviewAccount();
+    updateAuthVisibility();
+    populateReadonlyAccountsMenu();
+    updateMenuState();
+    updateAgendaControls();
+    updateTaskCreationControls();
+    updateFilterButtons();
+    render();
+  }
+
+  setAuthMessage('Sauvegarde importée avec succès.');
 }
 
 // Met à jour une tâche existante (champs modifiés + horodatage)
